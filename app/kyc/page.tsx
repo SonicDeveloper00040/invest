@@ -125,7 +125,7 @@ export default function KYCPage() {
                   </div>
                 </div>
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors cursor-pointer">
-                  <Image className="mx-auto text-gray-400 mb-3" size={40} alt="" />
+                  <Image className="mx-auto text-gray-400 mb-3" size={40} />
                   <p className="text-sm font-semibold text-gray-700 mb-1">Selfie with ID</p>
                   <p className="text-xs text-gray-500">Clear photo holding your ID next to your face</p>
                   <Button variant="outline" className="mt-4" size="sm">
