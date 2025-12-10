@@ -39,8 +39,8 @@ export default async function AdminTransactionsPage() {
         set(name: string, value: string, options: CookieOptions) {
           cookieStore.set({ name, value, ...options });
         },
-        remove(name: string, value: string, options: CookieOptions) {
-          cookieStore.set({ name, value, ...options });
+        remove(name: string, options: CookieOptions) {
+          cookieStore.delete(name, options);
         },
       },
     }
