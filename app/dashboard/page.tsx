@@ -17,8 +17,8 @@ export default async function DashboardPage() {
         set(name: string, value: string, options: CookieOptions) {
           cookieStore.set({ name, value, ...options });
         },
-        remove(name: string, options: CookieOptions) {
-          cookieStore.set({ name, value: '', ...options });
+        remove(name: string) {
+          cookieStore.delete(name);
         },
       },
     }
@@ -34,7 +34,7 @@ export default async function DashboardPage() {
     const { data: investments } = await supabase.from('investments').select('*, plans(*)').eq('user_id', user.id).eq('status', 'active');
     activeInvestments = investments || [];
 
-    const { data: transactions } = await supabase.from('transactions').select('*').eq('user_id', user.id).order('created_at', { descending: true }).limit(4);
+    const { data: transactions } = await supabase.from('transactions').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(4);
     recentTransactions = transactions || [];
 
     // Fetch portfolio data
