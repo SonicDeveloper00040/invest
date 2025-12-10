@@ -17,8 +17,8 @@ export default async function WalletPage() {
         set(name: string, value: string, options: CookieOptions) {
           cookieStore.set({ name, value, ...options });
         },
-        remove(name: string, options: CookieOptions) {
-          cookieStore.set({ name, value: '', ...options });
+        remove(name: string) {
+          cookieStore.delete(name);
         },
       },
     }
@@ -28,7 +28,7 @@ export default async function WalletPage() {
 
   let transactions: Transaction[] = [];
   if (user) {
-    const { data } = await supabase.from('transactions').select('*').eq('user_id', user.id).order('created_at', { descending: true });
+    const { data } = await supabase.from('transactions').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
     transactions = data || [];
   }
 
