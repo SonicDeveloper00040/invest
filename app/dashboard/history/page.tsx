@@ -17,8 +17,8 @@ export default async function HistoryPage() {
         set(name: string, value: string, options: CookieOptions) {
           cookieStore.set({ name, value, ...options });
         },
-        remove(name: string, options: CookieOptions) {
-          cookieStore.set({ name, value: '', ...options });
+        remove(name: string) {
+          cookieStore.delete(name);
         },
       },
     }
@@ -37,7 +37,7 @@ export default async function HistoryPage() {
       completedInvestments = investments.filter(inv => inv.status === 'completed');
     }
 
-    const { data: txs } = await supabase.from('transactions').select('*').eq('user_id', user.id).order('created_at', { descending: true });
+    const { data: txs } = await supabase.from('transactions').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
     transactions = txs || [];
   }
 
