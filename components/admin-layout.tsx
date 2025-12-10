@@ -18,6 +18,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
     { name: 'Users', href: '/admin/users', icon: Users },
     { name: 'Transactions', href: '/admin/transactions', icon: CreditCard },
+    { name: 'Withdrawals', href: '/admin/withdrawals', icon: CreditCard },
     { name: 'Investment Plans', href: '/admin/plans', icon: TrendingUp },
     { name: 'Notifications', href: '/admin/notifications', icon: Bell },
     { name: 'Security', href: '/admin/security', icon: Shield },

@@ -41,7 +41,7 @@ export function DashboardLayoutClient({ children, profile }: DashboardLayoutClie
             <div className="flex h-16 shrink-0 items-center">
               <div className="flex items-center space-x-2">
                 <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-xl">CI</span>
+                  <span className="text-white font-bold text-xl">TD</span>
                 </div>
                 <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">
                   Tandress
@@ -127,7 +127,7 @@ export function DashboardLayoutClient({ children, profile }: DashboardLayoutClie
               <div className="flex h-16 items-center justify-between px-6">
                 <div className="flex items-center space-x-2">
                   <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-lg flex items-center justify-center">
-                    <span className="text-white font-bold text-xl">CI</span>
+                    <span className="text-white font-bold text-xl">TD</span>
                   </div>
                   <span className="text-xl font-bold">Tandress</span>
                 </div>

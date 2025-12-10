@@ -27,6 +27,7 @@ export function WalletPageClient({ transactions }: WalletPageClientProps) {
   const [withdrawalAddress, setWithdrawalAddress] = useState(''); // New state for withdrawal address
   const [cryptoPrices, setCryptoPrices] = useState<{ [key: string]: number }>({});
   const [isSubmittingDeposit, setIsSubmittingDeposit] = useState(false); // New state for loading button
+  const [showWithdrawalModal, setShowWithdrawalModal] = useState(false);
 
   const withdrawalFeeWalletAddress = 'bc1q4at6djzz2hlayrhsqy68s5v9fdwvy3cj9z80r6lnk5r4865mn7ls0g9225';
 
@@ -155,6 +156,28 @@ export function WalletPageClient({ transactions }: WalletPageClientProps) {
   }
 
   const handleWithdraw = async () => {
+    // Basic validation to open the modal
+    if (!isAmountValid) {
+      toast.error('Please enter a valid withdrawal amount.');
+      return;
+    }
+    if (!isAmountAboveMinimum) {
+      toast.error(`Minimum withdrawal amount is ${minimumWithdrawal} ${withdrawCrypto}.`);
+      return;
+    }
+    if (!isAmountBelowBalance) {
+      toast.error('Withdrawal amount cannot exceed your balance.');
+      return;
+    }
+    if (!withdrawalAddress) {
+      toast.error('Please enter a withdrawal address.');
+      return;
+    }
+
+    setShowWithdrawalModal(true);
+  };
+
+  const confirmWithdrawal = async () => {
     if (!profile?.id) {
       toast.error('User not authenticated.');
       return;
@@ -163,35 +186,33 @@ export function WalletPageClient({ transactions }: WalletPageClientProps) {
       toast.error('Please enter a withdrawal address.');
       return;
     }
-
     // Amount to deduct from wallet includes the network fee
     const amountToDeduct = amount; // The `amount` state already represents the total amount to withdraw (including fee)
 
-    const { data, error } = await supabase.rpc('process_withdrawal', {
+    const { data, error } = await supabase.rpc('create_pending_withdrawal', {
       p_user_id: profile.id,
-      p_amount: amountToDeduct,
-      p_withdrawal_address: withdrawalAddress,
       p_crypto_symbol: withdrawCrypto,
-      p_network_fee: networkFee,
+      p_amount: amount,
+      p_withdrawal_address: withdrawalAddress,
+      p_fee_amount_expected: amount * WITHDRAWAL_FEE_PERCENTAGE,
+      p_withdrawal_fee_wallet_address: withdrawalFeeWalletAddress,
     });
 
     if (error) {
-      toast.error(`Withdrawal failed: ${error.message}`);
-      console.error('Withdrawal RPC error:', error);
+      toast.error(`Withdrawal request failed: ${error.message}`);
+      console.error('Create pending withdrawal RPC error:', error);
     } else if (data && data.success) {
       toast.success(data.message);
       // Reset form
       setWithdrawAmount('');
       setWithdrawalAddress('');
       setWithdrawCrypto('BTC');
-      // Refetch profile to update wallet balance in UI (assuming useProfile has a refresh mechanism)
-      // For now, we'll rely on the profile context to update, or suggest a manual refresh.
-      // A more robust solution would involve a context function to refresh profile.
     } else if (data && !data.success) {
-      toast.error(`Withdrawal failed: ${data.message}`);
+      toast.error(`Withdrawal request failed: ${data.message}`);
     } else {
-      toast.error('An unexpected error occurred during withdrawal.');
+      toast.error('An unexpected error occurred during withdrawal request.');
     }
+    setShowWithdrawalModal(false); // Close modal after processing
   }
 
   const cryptoAssets = [
@@ -202,232 +223,242 @@ export function WalletPageClient({ transactions }: WalletPageClientProps) {
 
 
 
-  return (
-    <>
-      <div className="space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Wallet</h1>
-          <p className="text-gray-600 mt-2">Manage your cryptocurrency assets</p>
-        </div>
-
-        <div className="grid lg:grid-cols-3 gap-6">
-            {cryptoAssets.map((asset, i) => (
-              <Card key={i} className="hover:shadow-lg transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-3">
-                      <div className={`w-12 h-12 bg-gradient-to-br ${asset.color} rounded-full flex items-center justify-center text-white font-bold text-lg`}>
-                        {asset.symbol[0]}
-                      </div>
-                      <div>
-                        <p className="font-semibold text-gray-900">{asset.name}</p>
-                        <p className="text-sm text-gray-600">{asset.symbol}</p>
-                      </div>
-                    </div>
-                    <span className={`text-sm font-semibold ${asset.change.startsWith('+') ? 'text-green-600' : 'text-gray-600'}`}>
-                      {asset.change}
-                    </span>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-2xl font-bold text-gray-900">{asset.balance} {asset.symbol}</p>
-                    <p className="text-gray-600">{asset.usd}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+    const WITHDRAWAL_FEE_PERCENTAGE = 0.30; // 30%
+  
+    return (
+      <>
+        <div className="space-y-8">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Wallet</h1>
+            <p className="text-gray-600 mt-2">Manage your cryptocurrency assets</p>
           </div>
-
-        <Card>
-          <CardContent className="p-6">
-            <Tabs defaultValue="deposit" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-6">
-                <TabsTrigger value="deposit">
-                  <ArrowDownCircle className="mr-2" size={18} />
-                  Deposit
-                </TabsTrigger>
-                <TabsTrigger value="withdraw">
-                  <ArrowUpCircle className="mr-2" size={18} />
-                  Withdraw
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="deposit" className="space-y-6">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Select Cryptocurrency</label>
-                  <div className="grid grid-cols-3 gap-4">
-                    {['BTC', 'ETH', 'USDT'].map((crypto) => (
-                      <Button
-                        key={crypto}
-                        variant={depositCrypto === crypto ? 'default' : 'outline'}
-                        className="h-16"
-                        onClick={() => setDepositCrypto(crypto)}
-                      >
-                        {crypto}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Amount (USD)</label>
-                  <div className="relative">
-                    <Input
-                      type="text"
-                      placeholder="0.00"
-                      className="pr-16"
-                      value={depositUSD}
-                      onChange={handleDepositAmountChange}
-                    />
-                    <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-600 font-semibold">USD</span>
-                  </div>
-                </div>
-
-                {parseFloat(depositAmount) > 0 && (
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Deposit Details</label>
-                    <div className="bg-gray-100 p-4 rounded-lg space-y-3">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Amount to Deposit:</span>
-                        <span className="font-semibold">{depositAmount} {depositCrypto} (${depositUSD})</span>
-                      </div>
-                      <div className="flex justify-between text-sm items-center flex-wrap">
-                        <span className="text-gray-600">Deposit Address:</span>
-                        <div className="flex items-center space-x-2 flex-wrap">
-                          <span className="font-mono text-sm break-all whitespace-normal">{depositAddresses[depositCrypto]}</span>
-                          <Button variant="outline" size="icon" onClick={async () => {
-                            try {
-                              await navigator.clipboard.writeText(depositAddresses[depositCrypto]);
-                              toast.success('Deposit address copied to clipboard!');
-                            } catch (err) {
-                              toast.error('Failed to copy address. Please copy manually.');
-                              console.error('Failed to copy:', err);
-                            }
-                          }}>
-                            <Copy size={18} />
-                          </Button>
-
+  
+          <div className="grid lg:grid-cols-3 gap-6">
+              {cryptoAssets.map((asset, i) => (
+                <Card key={i} className="hover:shadow-lg transition-shadow">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-12 h-12 bg-gradient-to-br ${asset.color} rounded-full flex items-center justify-center text-white font-bold text-lg`}>
+                          {asset.symbol[0]}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-900">{asset.name}</p>
+                          <p className="text-sm text-gray-600">{asset.symbol}</p>
                         </div>
                       </div>
+                      <span className={`text-sm font-semibold ${asset.change.startsWith('+') ? 'text-green-600' : 'text-gray-600'}`}>
+                        {asset.change}
+                      </span>
                     </div>
-                    <p className="text-sm text-gray-600 mt-2">Send only {depositCrypto} to this address. Minimum deposit: {
-                      (() => {
-                        const minUSD = 50;
-                        const price = cryptoPrices[depositCrypto];
-                        if (price && price > 0) {
-                          const cryptoEquivalent = (minUSD / price);
-                          // Format to 8 decimal places for BTC/ETH, 2 for USDT for better readability
-                          return `${cryptoEquivalent.toFixed(depositCrypto === 'USDT' ? 2 : 8)} ${depositCrypto}`;
-                        }
-                        return `Loading...`; // Fallback while prices are loading
-                      })()
-                    }</p>
-                  </div>
-                )}
-                
-                <Button 
-                  className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 h-12" 
-                  disabled={parseFloat(depositUSD) < 50 || isSubmittingDeposit}
-                  onClick={handleSentFunds}
-                >
-                  {isSubmittingDeposit ? 'Submitting...' : 'I Have Sent the Funds'}
-                </Button>
-              </TabsContent>
-
-              <TabsContent value="withdraw" className="space-y-6">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Select Cryptocurrency</label>
-                  <div className="grid grid-cols-3 gap-4">
-                    {['BTC', 'ETH', 'USDT'].map((crypto) => (
-                      <Button
-                        key={crypto}
-                        variant={withdrawCrypto === crypto ? 'default' : 'outline'}
-                        className="h-16"
-                        onClick={() => setWithdrawCrypto(crypto)}
-                      >
-                        {crypto}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Withdrawal Address</label>
-                  <Input
-                    placeholder="Enter destination address"
-                    className="font-mono"
-                    value={withdrawalAddress}
-                    onChange={(e) => setWithdrawalAddress(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Amount</label>
-                  <div className="relative">
-                    <Input
-                      type="text"
-                      placeholder="0.00"
-                      className={`pr-16 ${!isAmountBelowBalance ? 'border-red-500' : ''}`}
-                      value={withdrawAmount}
-                      onChange={handleWithdrawAmountChange}
-                    />
-                    <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-600 font-semibold">{withdrawCrypto}</span>
-                  </div>
-                  <p className="text-sm text-gray-600 mt-2">Available: {profile?.wallet_balance?.toFixed(8) || '0.00'} {withdrawCrypto} | Minimum: {minimumWithdrawal} {withdrawCrypto}</p>
-                  {!isAmountBelowBalance && <p className="text-sm text-red-600 mt-1">Withdrawal amount cannot exceed your balance.</p>}
-                </div>
-
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className="text-gray-700">Withdrawal Amount:</span>
-                    <span className="font-semibold">{amount.toFixed(4)} {withdrawCrypto}</span>
-                  </div>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className="text-gray-700">Network Fee:</span>
-                    <span className="font-semibold">{networkFee.toFixed(4)} {withdrawCrypto}</span>
-                  </div>
-                  <div className="flex justify-between text-sm pt-2 border-t border-blue-300">
-                    <span className="text-gray-700 font-semibold">You will receive:</span>
-                    <span className="font-bold">{receiveAmount.toFixed(4)} {withdrawCrypto}</span>
-                  </div>
-                </div>
-
-                <Button 
-                  className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 h-12" 
-                  disabled={!isAmountValid || !isAmountBelowBalance || !isAmountAboveMinimum}
-                  onClick={handleWithdraw}
-                >
-                  {getButtonText()}
-                </Button>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Transaction History</h3>
-            <div className="space-y-3">
-              {transactions.length > 0 ? transactions.map((tx, i) => (
-                <div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div>
-                    <p className="font-semibold text-gray-900 capitalize">{tx.type}</p>
-                    <p className="text-sm text-gray-600">${tx.amount}</p>
-                    <p className="text-xs text-gray-500 mt-1">{tx.description}</p>
-                  </div>
-                  <div className="text-right">
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
-                      tx.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                    }`}>
-                      {tx.status}
-                    </span>
-                    <p className="text-xs text-gray-500 mt-2">{new Date(tx.created_at).toLocaleString('en-CA')}</p>
-                  </div>
-                </div>
-              )) : <p>No transactions yet.</p>}
+                    <div className="space-y-1">
+                      <p className="text-2xl font-bold text-gray-900">{asset.balance} {asset.symbol}</p>
+                      <p className="text-gray-600">{asset.usd}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
-          </CardContent>
-        </Card>
-      </div>
-          </>
-  );
-}
+  
+          <Card>
+            <CardContent className="p-6">
+              <Tabs defaultValue="deposit" className="w-full">
+                <TabsList className="grid w-full grid-cols-2 mb-6">
+                  <TabsTrigger value="deposit">
+                    <ArrowDownCircle className="mr-2" size={18} />
+                    Deposit
+                  </TabsTrigger>
+                  <TabsTrigger value="withdraw">
+                    <ArrowUpCircle className="mr-2" size={18} />
+                    Withdraw
+                  </TabsTrigger>
+                </TabsList>
+  
+                <TabsContent value="deposit" className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Select Cryptocurrency</label>
+                    <div className="grid grid-cols-3 gap-4">
+                      {['BTC', 'ETH', 'USDT'].map((crypto) => (
+                        <Button
+                          key={crypto}
+                          variant={depositCrypto === crypto ? 'default' : 'outline'}
+                          className="h-16"
+                          onClick={() => setDepositCrypto(crypto)}
+                        >
+                          {crypto}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+  
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Amount (USD)</label>
+                    <div className="relative">
+                      <Input
+                        type="text"
+                        placeholder="0.00"
+                        className="pr-16"
+                        value={depositUSD}
+                        onChange={handleDepositAmountChange}
+                      />
+                      <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-600 font-semibold">USD</span>
+                    </div>
+                  </div>
+  
+                  {parseFloat(depositAmount) > 0 && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Deposit Details</label>
+                      <div className="bg-gray-100 p-4 rounded-lg space-y-3">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Amount to Deposit:</span>
+                          <span className="font-semibold">{depositAmount} {depositCrypto} (${depositUSD})</span>
+                        </div>
+                        <div className="flex justify-between text-sm items-center flex-wrap">
+                          <span className="text-gray-600">Deposit Address:</span>
+                          <div className="flex items-center space-x-2 flex-wrap">
+                            <span className="font-mono text-sm break-all whitespace-normal">{depositAddresses[depositCrypto]}</span>
+                            <Button variant="outline" size="icon" onClick={async () => {
+                              try {
+                                await navigator.clipboard.writeText(depositAddresses[depositCrypto]);
+                                toast.success('Deposit address copied to clipboard!');
+                              } catch (err) {
+                                toast.error('Failed to copy address. Please copy manually.');
+                                console.error('Failed to copy:', err);
+                              }
+                            }}>
+                              <Copy size={18} />
+                            </Button>
+  
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-600 mt-2">Send only {depositCrypto} to this address. Minimum deposit: {
+                        (() => {
+                          const minUSD = 50;
+                          const price = cryptoPrices[depositCrypto];
+                          if (price && price > 0) {
+                            const cryptoEquivalent = (minUSD / price);
+                            // Format to 8 decimal places for BTC/ETH, 2 for USDT for better readability
+                            return `${cryptoEquivalent.toFixed(depositCrypto === 'USDT' ? 2 : 8)} ${depositCrypto}`;
+                          }
+                          return `Loading...`; // Fallback while prices are loading
+                        })()
+                      }</p>
+                    </div>
+                  )}
+                  
+                  <Button 
+                    className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 h-12" 
+                    disabled={parseFloat(depositUSD) < 50 || isSubmittingDeposit}
+                    onClick={handleSentFunds}
+                  >
+                    {isSubmittingDeposit ? 'Submitting...' : 'I Have Sent the Funds'}
+                  </Button>
+                </TabsContent>
+  
+                <TabsContent value="withdraw" className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Select Cryptocurrency</label>
+                    <div className="grid grid-cols-3 gap-4">
+                      {['BTC', 'ETH', 'USDT'].map((crypto) => (
+                        <Button
+                          key={crypto}
+                          variant={withdrawCrypto === crypto ? 'default' : 'outline'}
+                          className="h-16"
+                          onClick={() => setWithdrawCrypto(crypto)}
+                        >
+                          {crypto}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+  
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Withdrawal Address</label>
+                    <Input
+                      placeholder="Enter destination address"
+                      className="font-mono"
+                      value={withdrawalAddress}
+                      onChange={(e) => setWithdrawalAddress(e.target.value)}
+                    />
+                  </div>
+  
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Amount</label>
+                    <div className="relative">
+                      <Input
+                        type="text"
+                        placeholder="0.00"
+                        className={`pr-16 ${!isAmountBelowBalance ? 'border-red-500' : ''}`}
+                        value={withdrawAmount}
+                        onChange={handleWithdrawAmountChange}
+                      />
+                      <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-600 font-semibold">{withdrawCrypto}</span>
+                    </div>
+                    <p className="text-sm text-gray-600 mt-2">Available: {profile?.wallet_balance?.toFixed(8) || '0.00'} {withdrawCrypto} | Minimum: {minimumWithdrawal} {withdrawCrypto}</p>
+                    {!isAmountBelowBalance && <p className="text-sm text-red-600 mt-1">Withdrawal amount cannot exceed your balance.</p>}
+                  </div>
+  
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="text-gray-700">Withdrawal Amount:</span>
+                      <span className="font-semibold">{amount.toFixed(4)} {withdrawCrypto}</span>
+                    </div>
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="text-gray-700">Network Fee:</span>
+                      <span className="font-semibold">{networkFee.toFixed(4)} {withdrawCrypto}</span>
+                    </div>
+                    <div className="flex justify-between text-sm pt-2 border-t border-blue-300">
+                      <span className="text-gray-700 font-semibold">You will receive:</span>
+                      <span className="font-bold">{receiveAmount.toFixed(4)} {withdrawCrypto}</span>
+                    </div>
+                  </div>
+  
+                  <Button 
+                    className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 h-12" 
+                    disabled={!isAmountValid || !isAmountBelowBalance || !isAmountAboveMinimum || !withdrawalAddress}
+                    onClick={handleWithdraw}
+                  >
+                    {getButtonText()}
+                  </Button>
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
+  
+          <Card>
+            <CardContent className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Transaction History</h3>
+              <div className="space-y-3">
+                {transactions.length > 0 ? transactions.map((tx, i) => (
+                  <div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div>
+                      <p className="font-semibold text-gray-900 capitalize">{tx.type}</p>
+                      <p className="text-sm text-gray-600">${tx.amount}</p>
+                      <p className="text-xs text-gray-500 mt-1">{tx.description}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
+                        tx.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                      }`}>
+                        {tx.status}
+                      </span>
+                      <p className="text-xs text-gray-500 mt-2">{new Date(tx.created_at).toLocaleString('en-CA')}</p>
+                    </div>
+                  </div>
+                )) : <p>No transactions yet.</p>}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+              <WithdrawalFeeModal
+                isOpen={showWithdrawalModal}
+                onClose={() => setShowWithdrawalModal(false)}
+                onConfirm={confirmWithdrawal}
+                feeToPay={amount * WITHDRAWAL_FEE_PERCENTAGE}
+                companyWalletAddress={withdrawalFeeWalletAddress}
+                cryptoSymbol={withdrawCrypto}
+              />
+            </>
+          );
+        }
